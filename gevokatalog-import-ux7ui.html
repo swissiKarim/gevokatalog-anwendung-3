@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>GeVo‑Katalog Import</title>
+  <meta name="viewport" content="width=900, initial-scale=1.0">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #fafafa;
+      font-family: 'Segoe UI','Roboto','Arial',sans-serif;
+      color: #232323;
+    }
+    .main-box {
+      width: 800px;
+      min-height: 670px;
+      margin: 32px auto;
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 2px 16px 0 rgba(120,130,175,0.04);
+      position: relative;
+      padding: 0 0 36px 0;
+    }
+    h1 {
+      text-align: center;
+      color: #232323;
+      font-size: 2.3rem;
+      font-weight: 700;
+      margin: 40px 0 0 0;
+      letter-spacing: 0.01em;
+    }
+    .desc {
+      text-align: center;
+      color: #444;
+      font-size: 1.12rem;
+      margin: 10px 0 32px 0;
+    }
+    .dropzone {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 26px auto;
+      width: 550px;
+      height: 90px;
+      background: #fafafa;
+      border: 2px dashed #bdbdbd;
+      border-radius: 18px;
+      color: #666;
+      font-size: 1.1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .dropzone.dragover { background: #e3ecef; }
+    .form-group { margin: 9px auto 0 auto; width: 540px; }
+    .form-label {
+      font-size: 1rem;
+      font-weight: 500;
+      margin-bottom: 4px;
+      color: #222326;
+      display: block;
+      margin-top: 16px;
+    }
+    .form-input {
+      width: 100%;
+      height: 36px;
+      border-radius: 8px;
+      border: 1.5px solid #bdbdbd;
+      padding: 0 12px;
+      font-size: 1rem;
+      color: #232323;
+      background: #fff;
+      margin-bottom: 0px;
+      outline: none;
+      transition: border 0.15s;
+    }
+    .form-input:focus {
+      border-color: #6993f0;
+    }
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      margin-left: 0;
+      margin-top: 28px;
+      font-size: 1.01rem;
+    }
+    .checkbox-row input[type=checkbox] {
+      width: 22px;
+      height: 22px;
+      border-radius: 5px;
+      margin-right: 14px;
+    }
+    .import-btn {
+      display: block;
+      width: 320px;
+      height: 48px;
+      background: #616161;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      margin: 34px auto 0 auto;
+      font-size: 1.17rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      transition: background 0.17s;
+      box-shadow: 0 2px 4px 0 rgba(60,70,85,0.05);
+    }
+    .import-btn:hover { background: #404142; }
+    .status-bar {
+      margin: 35px auto 0 auto;
+      width: 320px;
+      height: 28px;
+      text-align: center;
+      font-size: 1.04rem;
+      color: #ba1d1d;
+    }
+    .status-bar.ok { color: #007e4b; }
+    .status-bar.wait { color: #3b3149; }
+    input[readonly] {
+      color: #888;
+      background: #fafafa;
+    }
+  </style>
+</head>
+<body>
+  <div class="main-box">
+    <h1>GeVo‑Katalog Import</h1>
+    <div class="desc">Excel-Datei (.xlsx) hochladen und in die GMS‑Datenbank (Schema gms) importieren.</div>
+    <form id="importform" enctype="multipart/form-data" onsubmit="return false;">
+      <div class="dropzone" id="dropzone">Klicken oder Datei hierher ziehen (.xlsx)</div>
+      <div class="form-group">
+        <label class="form-label" for="bereich">Fachbereich</label>
+        <input class="form-input" id="bereich" name="bereich" type="text" value="Import" autocomplete="section-field" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="descfield">Fachliche Beschreibung</label>
+        <input class="form-input" id="descfield" name="desc" type="text" value="Excel-Import" autocomplete="section-field" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="version">Version</label>
+        <input class="form-input" id="version" name="version" type="text" value="1.0" autocomplete="section-version" required>
+      </div>
+      <div class="form-group checkbox-row">
+        <input type="checkbox" id="cb-own-db" name="ownDb">
+        <label for="cb-own-db">Eigene DB-Verbindung (ansonsten Konfiguration aus Umgebung)</label>
+      </div>
+      <button type="submit" class="import-btn">Import starten</button>
+      <div class="status-bar" id="status-bar">⚡ Fehlermeldung oder Status/Spinner/Erfolg</div>
+    </form>
+  </div>
+  <input type="file" id="file-input" accept=".xlsx" style="display:none" />
+  <script>
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('file-input');
+    let selectedFile = null;
+    const statusBar = document.getElementById('status-bar');
+    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('dragover');
+    });
+    dropzone.addEventListener('dragleave', (e) => {
+      dropzone.classList.remove('dragover');
+    });
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      const files = e.dataTransfer.files;
+      if (files && files.length > 0) {
+        handleFile(files[0]);
+      }
+    });
+    fileInput.addEventListener('change', e => {
+      if (fileInput.files.length > 0) {
+        handleFile(fileInput.files[0]);
+      }
+    });
+    function handleFile(file) {
+      if (!file.name.endsWith('.xlsx')) {
+        statusBar.textContent = 'Nur .xlsx-Dateien werden unterstützt!';
+        statusBar.classList.remove('ok','wait');
+        return;
+      }
+      selectedFile = file;
+      dropzone.textContent = file.name;
+      statusBar.textContent = `Datei ausgewählt: ${file.name}`;
+      statusBar.classList.add('ok');
+    }
+    document.getElementById('importform').addEventListener('submit', async function(e) {
+      statusBar.textContent = 'Übertrage Import...';
+      statusBar.classList.remove('ok');
+      statusBar.classList.add('wait');
+      if (!selectedFile) {
+        statusBar.textContent = 'Bitte erst eine Excel-Datei auswählen.';
+        statusBar.classList.remove('ok','wait');
+        return;
+      }
+      // Hier: tatsächlichen Import-POST implementieren
+      await new Promise(r=>setTimeout(r,1000)); // Demo
+      statusBar.textContent = '✅ Import erfolgreich!';
+      statusBar.classList.remove('wait');
+      statusBar.classList.add('ok');
+    });
+  </script>
+</body>
+</html>
